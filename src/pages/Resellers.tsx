@@ -9,13 +9,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { formatMbps, formatBytes } from '@/lib/formatters';
 import { toast } from 'sonner';
-import { Plus, Users, Pencil, Trash2, Loader2, ArrowUpDown } from 'lucide-react';
+import { Plus, Users, Pencil, Trash2, Loader2, ArrowUpDown, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DetectionRulesEditor, DetectionRule, parseDetectionRules } from '@/components/resellers/DetectionRulesEditor';
+import { UserMappingsEditor } from '@/components/resellers/UserMappingsEditor';
 
 interface ResellerForm {
   name: string;
@@ -23,6 +26,7 @@ interface ResellerForm {
   contact_phone: string;
   bandwidth_cap_mbps: number | null;
   notes: string;
+  detection_rules: DetectionRule[];
 }
 
 const defaultForm: ResellerForm = {
@@ -31,6 +35,7 @@ const defaultForm: ResellerForm = {
   contact_phone: '',
   bandwidth_cap_mbps: null,
   notes: '',
+  detection_rules: [],
 };
 
 type SortField = 'name' | 'bandwidth' | 'sessions' | 'data';
@@ -61,7 +66,11 @@ export default function Resellers() {
 
   const createMutation = useMutation({
     mutationFn: async (reseller: ResellerForm) => {
-      const { error } = await supabase.from('resellers').insert(reseller);
+      const { detection_rules, ...rest } = reseller;
+      const { error } = await supabase.from('resellers').insert({
+        ...rest,
+        detection_rules: detection_rules as unknown as null,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -78,7 +87,11 @@ export default function Resellers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, reseller }: { id: string; reseller: Partial<ResellerForm> }) => {
-      const { error } = await supabase.from('resellers').update(reseller).eq('id', id);
+      const { detection_rules, ...rest } = reseller;
+      const { error } = await supabase.from('resellers').update({
+        ...rest,
+        detection_rules: detection_rules as unknown as null,
+      }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -126,6 +139,7 @@ export default function Resellers() {
       contact_phone: reseller.contact_phone || '',
       bandwidth_cap_mbps: reseller.bandwidth_cap_mbps,
       notes: reseller.notes || '',
+      detection_rules: parseDetectionRules(reseller.detection_rules),
     });
     setIsDialogOpen(true);
   };
@@ -201,68 +215,98 @@ export default function Resellers() {
                   Add Reseller
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-md">
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     {editingReseller ? 'Edit Reseller' : 'Add New Reseller'}
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Reseller Name</Label>
-                    <Input
-                      id="name"
-                      value={form.name}
-                      onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      placeholder="ABC Networks"
-                      required
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="contact_email">Email</Label>
-                      <Input
-                        id="contact_email"
-                        type="email"
-                        value={form.contact_email}
-                        onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
-                        placeholder="contact@abc.com"
+                  <Tabs defaultValue="details" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="details">Details</TabsTrigger>
+                      <TabsTrigger value="detection">
+                        <Settings2 className="h-4 w-4 mr-1" />
+                        Detection Rules
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="details" className="space-y-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Reseller Name</Label>
+                        <Input
+                          id="name"
+                          value={form.name}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          placeholder="ABC Networks"
+                          required
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="contact_email">Email</Label>
+                          <Input
+                            id="contact_email"
+                            type="email"
+                            value={form.contact_email}
+                            onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
+                            placeholder="contact@abc.com"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="contact_phone">Phone</Label>
+                          <Input
+                            id="contact_phone"
+                            value={form.contact_phone}
+                            onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
+                            placeholder="+254..."
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="bandwidth_cap">Bandwidth Cap (Mbps)</Label>
+                        <Input
+                          id="bandwidth_cap"
+                          type="number"
+                          value={form.bandwidth_cap_mbps || ''}
+                          onChange={(e) => setForm({ 
+                            ...form, 
+                            bandwidth_cap_mbps: e.target.value ? parseInt(e.target.value) : null 
+                          })}
+                          placeholder="Leave empty for no cap"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="notes">Notes</Label>
+                        <Textarea
+                          id="notes"
+                          value={form.notes}
+                          onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                          placeholder="Additional notes about this reseller"
+                          rows={3}
+                        />
+                      </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="detection" className="space-y-6 mt-4">
+                      <DetectionRulesEditor
+                        rules={form.detection_rules}
+                        onChange={(rules) => setForm({ ...form, detection_rules: rules })}
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="contact_phone">Phone</Label>
-                      <Input
-                        id="contact_phone"
-                        value={form.contact_phone}
-                        onChange={(e) => setForm({ ...form, contact_phone: e.target.value })}
-                        placeholder="+254..."
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bandwidth_cap">Bandwidth Cap (Mbps)</Label>
-                    <Input
-                      id="bandwidth_cap"
-                      type="number"
-                      value={form.bandwidth_cap_mbps || ''}
-                      onChange={(e) => setForm({ 
-                        ...form, 
-                        bandwidth_cap_mbps: e.target.value ? parseInt(e.target.value) : null 
-                      })}
-                      placeholder="Leave empty for no cap"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={form.notes}
-                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                      placeholder="Additional notes about this reseller"
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-4">
+                      
+                      {editingReseller && (
+                        <UserMappingsEditor resellerId={editingReseller} />
+                      )}
+                      
+                      {!editingReseller && (
+                        <p className="text-sm text-muted-foreground">
+                          Save the reseller first to add manual user mappings.
+                        </p>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                  
+                  <div className="flex justify-end gap-2 pt-4 border-t">
                     <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                       Cancel
                     </Button>
