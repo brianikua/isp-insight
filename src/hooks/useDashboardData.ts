@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { Json } from '@/integrations/supabase/types';
 
 export interface RouterData {
   id: string;
@@ -9,10 +10,16 @@ export interface RouterData {
   last_seen_at: string | null;
 }
 
+interface DetectionRule {
+  type: 'prefix' | 'profile' | 'comment';
+  value: string;
+}
+
 export interface ResellerData {
   id: string;
   name: string;
   bandwidth_cap_mbps: number | null;
+  detection_rules: DetectionRule[];
 }
 
 export interface SessionData {
@@ -20,11 +27,39 @@ export interface SessionData {
   router_id: string;
   reseller_id: string | null;
   username: string;
+  profile: string | null;
+  comment: string | null;
   tx_rate_bps: number;
   rx_rate_bps: number;
   tx_bytes: number;
   rx_bytes: number;
   is_active: boolean;
+}
+
+interface UserMapping {
+  reseller_id: string;
+  pppoe_username: string;
+}
+
+function parseDetectionRules(json: Json | null): DetectionRule[] {
+  if (!json || !Array.isArray(json)) return [];
+  const rules: DetectionRule[] = [];
+  for (const r of json) {
+    if (
+      typeof r === 'object' && 
+      r !== null && 
+      'type' in r && 
+      'value' in r &&
+      typeof (r as Record<string, unknown>).type === 'string' &&
+      typeof (r as Record<string, unknown>).value === 'string'
+    ) {
+      rules.push({
+        type: (r as Record<string, unknown>).type as 'prefix' | 'profile' | 'comment',
+        value: (r as Record<string, unknown>).value as string,
+      });
+    }
+  }
+  return rules;
 }
 
 export interface AlertData {
@@ -55,10 +90,13 @@ export function useDashboardData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('resellers')
-        .select('id, name, bandwidth_cap_mbps')
+        .select('id, name, bandwidth_cap_mbps, detection_rules')
         .order('name');
       if (error) throw error;
-      return data as ResellerData[];
+      return data.map(r => ({
+        ...r,
+        detection_rules: parseDetectionRules(r.detection_rules),
+      })) as ResellerData[];
     },
     refetchInterval: 30000,
   });
@@ -68,10 +106,22 @@ export function useDashboardData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('pppoe_sessions')
-        .select('id, router_id, reseller_id, username, tx_rate_bps, rx_rate_bps, tx_bytes, rx_bytes, is_active')
+        .select('id, router_id, reseller_id, username, profile, comment, tx_rate_bps, rx_rate_bps, tx_bytes, rx_bytes, is_active')
         .eq('is_active', true);
       if (error) throw error;
       return data as SessionData[];
+    },
+    refetchInterval: 30000,
+  });
+
+  const userMappingsQuery = useQuery({
+    queryKey: ['reseller-user-mappings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reseller_user_mappings')
+        .select('reseller_id, pppoe_username');
+      if (error) throw error;
+      return data as UserMapping[];
     },
     refetchInterval: 30000,
   });
@@ -96,6 +146,7 @@ export function useDashboardData() {
   const resellers = resellersQuery.data || [];
   const sessions = sessionsQuery.data || [];
   const alerts = alertsQuery.data || [];
+  const userMappings = userMappingsQuery.data || [];
 
   const onlineRouters = routers.filter(r => r.is_online).length;
   const totalSessions = sessions.length;
@@ -103,9 +154,38 @@ export function useDashboardData() {
   // Calculate total bandwidth
   const totalBandwidthBps = sessions.reduce((sum, s) => sum + (s.tx_rate_bps || 0) + (s.rx_rate_bps || 0), 0);
 
-  // Aggregate reseller stats
+  // Match session to reseller using detection rules and manual mappings
+  const matchSessionToReseller = (session: SessionData): string | null => {
+    // 1. Check manual user mappings first (highest priority)
+    const manualMapping = userMappings.find(m => m.pppoe_username === session.username);
+    if (manualMapping) return manualMapping.reseller_id;
+
+    // 2. Check if session already has reseller_id from database
+    if (session.reseller_id) return session.reseller_id;
+
+    // 3. Apply detection rules
+    for (const reseller of resellers) {
+      for (const rule of reseller.detection_rules) {
+        switch (rule.type) {
+          case 'prefix':
+            if (session.username.startsWith(rule.value)) return reseller.id;
+            break;
+          case 'profile':
+            if (session.profile && session.profile.toLowerCase() === rule.value.toLowerCase()) return reseller.id;
+            break;
+          case 'comment':
+            if (session.comment && session.comment.toLowerCase().includes(rule.value.toLowerCase())) return reseller.id;
+            break;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Aggregate reseller stats with detection rules applied
   const resellerStats = resellers.map(reseller => {
-    const resellerSessions = sessions.filter(s => s.reseller_id === reseller.id);
+    const resellerSessions = sessions.filter(s => matchSessionToReseller(s) === reseller.id);
     const bandwidthBps = resellerSessions.reduce((sum, s) => sum + (s.tx_rate_bps || 0) + (s.rx_rate_bps || 0), 0);
     const totalBytes = resellerSessions.reduce((sum, s) => sum + (s.tx_bytes || 0) + (s.rx_bytes || 0), 0);
     
@@ -132,14 +212,15 @@ export function useDashboardData() {
     };
   });
 
-  const isLoading = routersQuery.isLoading || resellersQuery.isLoading || sessionsQuery.isLoading;
-  const error = routersQuery.error || resellersQuery.error || sessionsQuery.error;
+  const isLoading = routersQuery.isLoading || resellersQuery.isLoading || sessionsQuery.isLoading || userMappingsQuery.isLoading;
+  const error = routersQuery.error || resellersQuery.error || sessionsQuery.error || userMappingsQuery.error;
 
   const refetchAll = () => {
     routersQuery.refetch();
     resellersQuery.refetch();
     sessionsQuery.refetch();
     alertsQuery.refetch();
+    userMappingsQuery.refetch();
   };
 
   return {
