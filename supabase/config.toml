@@ -1,1 +1,4 @@
 project_id = "fkpnnfiqkvcsnktbrtut"
+
+[functions.poll-routers]
+verify_jwt = false

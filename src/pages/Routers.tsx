@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RouterForm {
@@ -41,6 +41,8 @@ export default function Routers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRouter, setEditingRouter] = useState<string | null>(null);
   const [form, setForm] = useState<RouterForm>(defaultForm);
+  const [pollingRouterId, setPollingRouterId] = useState<string | null>(null);
+  const [isPollingAll, setIsPollingAll] = useState(false);
 
   const { data: routers, isLoading } = useQuery({
     queryKey: ['routers'],
@@ -136,6 +138,55 @@ export default function Routers() {
     setForm(defaultForm);
   };
 
+  const pollRouter = async (routerId?: string) => {
+    const isPollingSingle = !!routerId;
+    if (isPollingSingle) {
+      setPollingRouterId(routerId);
+    } else {
+      setIsPollingAll(true);
+    }
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/poll-routers`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify(routerId ? { router_id: routerId } : {}),
+        }
+      );
+
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Poll failed');
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['routers'] });
+      queryClient.invalidateQueries({ queryKey: ['pppoe_sessions'] });
+      
+      if (isPollingSingle) {
+        const routerResult = result.results?.[0];
+        if (routerResult?.error) {
+          toast.error(`Poll failed: ${routerResult.error}`);
+        } else {
+          toast.success(`Polled ${routerResult?.sessionCount || 0} sessions`);
+        }
+      } else {
+        const onlineCount = result.results?.filter((r: any) => r.isOnline).length || 0;
+        toast.success(`Polled ${result.polled} routers (${onlineCount} online)`);
+      }
+    } catch (error) {
+      toast.error(`Poll failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setPollingRouterId(null);
+      setIsPollingAll(false);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -146,14 +197,27 @@ export default function Routers() {
               Manage your MikroTik router connections
             </p>
           </div>
-          {isAdmin && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={() => { setEditingRouter(null); setForm(defaultForm); }}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Router
-                </Button>
-              </DialogTrigger>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => pollRouter()}
+              disabled={isPollingAll || !routers?.length}
+            >
+              {isPollingAll ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Poll All Routers
+            </Button>
+            {isAdmin && (
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={() => { setEditingRouter(null); setForm(defaultForm); }}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Router
+                  </Button>
+                </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>
@@ -254,7 +318,8 @@ export default function Routers() {
                 </form>
               </DialogContent>
             </Dialog>
-          )}
+            )}
+          </div>
         </div>
 
         <Card>
@@ -268,7 +333,7 @@ export default function Routers() {
                   <TableHead>Host</TableHead>
                   <TableHead>Version</TableHead>
                   <TableHead>Last Seen</TableHead>
-                  {isAdmin && <TableHead className="text-right">Actions</TableHead>}
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -312,26 +377,41 @@ export default function Routers() {
                           : 'Never'
                         }
                       </TableCell>
-                      {isAdmin && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
+                      <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleEdit(router)}
+                              onClick={() => pollRouter(router.id)}
+                              disabled={pollingRouterId === router.id || isPollingAll}
+                              title="Poll this router"
                             >
-                              <Pencil className="h-4 w-4" />
+                              {pollingRouterId === router.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(router.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {isAdmin && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(router)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(router.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
-                      )}
                     </TableRow>
                   ))
                 )}
