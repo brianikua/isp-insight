@@ -105,6 +105,80 @@ async function pollRouterREST(router: RouterConfig): Promise<{
   }
 }
 
+// Check bandwidth thresholds and create alerts for resellers exceeding caps
+async function checkBandwidthThresholds(supabase: ReturnType<typeof createClient>) {
+  // Fetch resellers with bandwidth caps
+  const { data: resellers, error: resErr } = await supabase
+    .from('resellers')
+    .select('id, name, bandwidth_cap_mbps, detection_rules')
+    .not('bandwidth_cap_mbps', 'is', null)
+
+  if (resErr || !resellers || resellers.length === 0) return
+
+  // Fetch all active sessions
+  const { data: sessions, error: sessErr } = await supabase
+    .from('pppoe_sessions')
+    .select('username, profile, comment, reseller_id, tx_rate_bps, rx_rate_bps')
+    .eq('is_active', true)
+
+  if (sessErr || !sessions) return
+
+  // Fetch manual user mappings
+  const { data: mappings } = await supabase
+    .from('reseller_user_mappings')
+    .select('reseller_id, pppoe_username')
+
+  const userMappings = mappings || []
+
+  for (const reseller of resellers) {
+    const rules = Array.isArray(reseller.detection_rules) ? reseller.detection_rules : []
+    
+    // Match sessions to this reseller
+    const resellerSessions = sessions.filter(s => {
+      // Manual mapping
+      if (userMappings.some(m => m.reseller_id === reseller.id && m.pppoe_username === s.username)) return true
+      // DB reseller_id
+      if (s.reseller_id === reseller.id) return true
+      // Detection rules
+      for (const rule of rules) {
+        const r = rule as { type: string; value: string }
+        if (r.type === 'prefix' && s.username.startsWith(r.value)) return true
+        if (r.type === 'profile' && s.profile?.toLowerCase() === r.value.toLowerCase()) return true
+        if (r.type === 'comment' && s.comment?.toLowerCase().includes(r.value.toLowerCase())) return true
+      }
+      return false
+    })
+
+    const totalBps = resellerSessions.reduce((sum, s) => sum + (s.tx_rate_bps || 0) + (s.rx_rate_bps || 0), 0)
+    const totalMbps = totalBps / 1_000_000
+    const capMbps = reseller.bandwidth_cap_mbps!
+
+    if (totalMbps > capMbps) {
+      // Check if we already have an unread alert for this reseller in the last 5 minutes
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
+      const { data: existing } = await supabase
+        .from('alerts')
+        .select('id')
+        .eq('reseller_id', reseller.id)
+        .eq('alert_type', 'bandwidth_exceeded')
+        .eq('is_read', false)
+        .gte('created_at', fiveMinAgo)
+        .limit(1)
+
+      if (!existing || existing.length === 0) {
+        const percentage = Math.round((totalMbps / capMbps) * 100)
+        await supabase.from('alerts').insert({
+          alert_type: 'bandwidth_exceeded',
+          severity: totalMbps > capMbps * 1.5 ? 'critical' : 'warning',
+          message: `${reseller.name} is at ${percentage}% of bandwidth cap (${totalMbps.toFixed(1)} / ${capMbps} Mbps)`,
+          reseller_id: reseller.id,
+        })
+        console.log(`Alert: ${reseller.name} exceeded bandwidth cap (${totalMbps.toFixed(1)}/${capMbps} Mbps)`)
+      }
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -236,6 +310,9 @@ Deno.serve(async (req) => {
         isOnline: true
       })
     }
+
+    // --- Bandwidth threshold alerting ---
+    await checkBandwidthThresholds(supabase)
 
     return new Response(
       JSON.stringify({
