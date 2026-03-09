@@ -125,6 +125,7 @@ export default function Routers() {
       username: router.username,
       password: router.password,
       routeros_version: router.routeros_version || 'v7',
+      use_https: router.use_https ?? true,
     });
     setIsDialogOpen(true);
   };
