@@ -404,6 +404,14 @@ export default function Routers() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => setTestingRouter({ id: router.id, name: router.name })}
+                              title="Test connection"
+                            >
+                              <FlaskConical className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => pollRouter(router.id)}
                               disabled={pollingRouterId === router.id || isPollingAll}
                               title="Poll this router"
