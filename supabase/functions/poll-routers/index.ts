@@ -311,6 +311,9 @@ Deno.serve(async (req) => {
       })
     }
 
+    // --- Record usage history snapshots ---
+    await recordUsageHistory(supabase)
+
     // --- Bandwidth threshold alerting ---
     await checkBandwidthThresholds(supabase)
 
