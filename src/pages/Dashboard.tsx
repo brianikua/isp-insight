@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { TopResellersTable } from '@/components/dashboard/TopResellersTable';
 import { RouterStatusList } from '@/components/dashboard/RouterStatusList';
+import { BandwidthTrendChart } from '@/components/dashboard/BandwidthTrendChart';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { formatMbps, formatNumber } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
