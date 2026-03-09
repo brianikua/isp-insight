@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2, RefreshCw, Lock, Unlock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
 interface RouterForm {
@@ -23,6 +24,7 @@ interface RouterForm {
   username: string;
   password: string;
   routeros_version: string;
+  use_https: boolean;
 }
 
 const defaultForm: RouterForm = {
@@ -33,6 +35,7 @@ const defaultForm: RouterForm = {
   username: 'admin',
   password: '',
   routeros_version: 'v7',
+  use_https: true,
 };
 
 export default function Routers() {
@@ -122,6 +125,7 @@ export default function Routers() {
       username: router.username,
       password: router.password,
       routeros_version: router.routeros_version || 'v7',
+      use_https: router.use_https ?? true,
     });
     setIsDialogOpen(true);
   };
@@ -303,6 +307,22 @@ export default function Routers() {
                         <SelectItem value="v7">RouterOS v7</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="use_https" className="text-sm font-medium">Use HTTPS</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {form.use_https ? 'Secure connection (port 443)' : 'Plain HTTP (port 80)'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {form.use_https ? <Lock className="h-4 w-4 text-green-500" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
+                      <Switch
+                        id="use_https"
+                        checked={form.use_https}
+                        onCheckedChange={(checked) => setForm({ ...form, use_https: checked })}
+                      />
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={handleDialogClose}>

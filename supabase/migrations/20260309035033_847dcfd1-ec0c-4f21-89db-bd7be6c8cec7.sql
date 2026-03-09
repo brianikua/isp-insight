@@ -1,0 +1,1 @@
+ALTER TABLE public.routers ADD COLUMN use_https boolean NOT NULL DEFAULT true;
