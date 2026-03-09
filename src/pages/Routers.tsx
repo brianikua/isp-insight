@@ -308,6 +308,23 @@ export default function Routers() {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="use_https" className="text-sm font-medium">Use HTTPS</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {form.use_https ? 'Secure connection (port 443)' : 'Plain HTTP (port 80)'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {form.use_https ? <Lock className="h-4 w-4 text-green-500" /> : <Unlock className="h-4 w-4 text-muted-foreground" />}
+                      <Switch
+                        id="use_https"
+                        checked={form.use_https}
+                        onCheckedChange={(checked) => setForm({ ...form, use_https: checked })}
+                      />
+                    </div>
+                  </div>
+                  </div>
                   <div className="flex justify-end gap-2 pt-4">
                     <Button type="button" variant="outline" onClick={handleDialogClose}>
                       Cancel
