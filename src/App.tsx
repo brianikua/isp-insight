@@ -8,6 +8,7 @@ import { AuthPage } from "./components/auth/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import Routers from "./pages/Routers";
 import Resellers from "./pages/Resellers";
+import ResellerSessions from "./pages/ResellerSessions";
 import Sessions from "./pages/Sessions";
 import Alerts from "./pages/Alerts";
 import Settings from "./pages/Settings";
@@ -84,6 +85,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Resellers />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/reseller-sessions"
+        element={
+          <ProtectedRoute>
+            <ResellerSessions />
           </ProtectedRoute>
         }
       />
