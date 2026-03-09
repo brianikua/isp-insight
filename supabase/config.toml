@@ -2,3 +2,6 @@ project_id = "fkpnnfiqkvcsnktbrtut"
 
 [functions.poll-routers]
 verify_jwt = false
+
+[functions.test-router]
+verify_jwt = false

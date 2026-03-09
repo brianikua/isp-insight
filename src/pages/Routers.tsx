@@ -450,6 +450,15 @@ export default function Routers() {
           </CardContent>
         </Card>
       </div>
+
+      {testingRouter && (
+        <RouterTestDialog
+          routerId={testingRouter.id}
+          routerName={testingRouter.name}
+          open={!!testingRouter}
+          onOpenChange={(open) => { if (!open) setTestingRouter(null); }}
+        />
+      )}
     </MainLayout>
   );
 }
