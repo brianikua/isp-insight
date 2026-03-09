@@ -237,6 +237,9 @@ Deno.serve(async (req) => {
       })
     }
 
+    // --- Bandwidth threshold alerting ---
+    await checkBandwidthThresholds(supabase)
+
     return new Response(
       JSON.stringify({
         success: true,
