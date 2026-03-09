@@ -242,6 +242,7 @@ export type Database = {
           routeros_version: string | null
           site_name: string | null
           updated_at: string
+          use_https: boolean
           use_snmp: boolean | null
           username: string
         }
@@ -257,6 +258,7 @@ export type Database = {
           routeros_version?: string | null
           site_name?: string | null
           updated_at?: string
+          use_https?: boolean
           use_snmp?: boolean | null
           username: string
         }
@@ -272,6 +274,7 @@ export type Database = {
           routeros_version?: string | null
           site_name?: string | null
           updated_at?: string
+          use_https?: boolean
           use_snmp?: boolean | null
           username?: string
         }
