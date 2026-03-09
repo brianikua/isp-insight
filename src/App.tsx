@@ -89,6 +89,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/reseller-sessions"
+        element={
+          <ProtectedRoute>
+            <ResellerSessions />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/sessions"
         element={
           <ProtectedRoute>

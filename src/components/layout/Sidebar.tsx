@@ -20,6 +20,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Routers', href: '/routers', icon: Router },
   { name: 'Resellers', href: '/resellers', icon: Users },
+  { name: 'Reseller Sessions', href: '/reseller-sessions', icon: Activity },
   { name: 'Sessions', href: '/sessions', icon: Activity },
   { name: 'Alerts', href: '/alerts', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings, adminOnly: true },
