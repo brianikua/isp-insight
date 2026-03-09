@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { TopResellersTable } from '@/components/dashboard/TopResellersTable';
 import { RouterStatusList } from '@/components/dashboard/RouterStatusList';
+import { BandwidthTrendChart } from '@/components/dashboard/BandwidthTrendChart';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { formatMbps, formatNumber } from '@/lib/formatters';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -125,50 +126,64 @@ export default function Dashboard() {
 
         {/* Main content grid */}
         {totalRouters > 0 && (
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Top Resellers Table */}
-            <Card className="lg:col-span-2">
-              <CardHeader className="flex flex-row items-center justify-between">
+          <div className="space-y-6">
+            {/* Bandwidth Trend Chart */}
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-lg font-semibold">
-                  Top Resellers by Bandwidth
+                  Bandwidth Trend (Last 24h)
                 </CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/resellers')}
-                >
-                  View All
-                </Button>
               </CardHeader>
               <CardContent>
-                <TopResellersTable 
-                  resellers={topResellers}
-                  onResellerClick={(id) => navigate(`/resellers/${id}`)}
-                />
+                <BandwidthTrendChart hours={24} />
               </CardContent>
             </Card>
 
-            {/* Router Status */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="text-lg font-semibold">
-                  Router Status
-                </CardTitle>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => navigate('/routers')}
-                >
-                  Manage
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <RouterStatusList 
-                  routers={routerStats}
-                  onRouterClick={(id) => navigate(`/routers/${id}`)}
-                />
-              </CardContent>
-            </Card>
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Top Resellers Table */}
+              <Card className="lg:col-span-2">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg font-semibold">
+                    Top Resellers by Bandwidth
+                  </CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/resellers')}
+                  >
+                    View All
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <TopResellersTable 
+                    resellers={topResellers}
+                    onResellerClick={(id) => navigate(`/resellers/${id}`)}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Router Status */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-lg font-semibold">
+                    Router Status
+                  </CardTitle>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/routers')}
+                  >
+                    Manage
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <RouterStatusList 
+                    routers={routerStats}
+                    onRouterClick={(id) => navigate(`/routers/${id}`)}
+                  />
+                </CardContent>
+              </Card>
+            </div>
           </div>
         )}
       </div>

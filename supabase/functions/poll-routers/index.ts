@@ -179,6 +179,81 @@ async function checkBandwidthThresholds(supabase: ReturnType<typeof createClient
   }
 }
 
+// Record usage history snapshots per router and per reseller
+async function recordUsageHistory(supabase: ReturnType<typeof createClient>) {
+  const { data: sessions } = await supabase
+    .from('pppoe_sessions')
+    .select('router_id, reseller_id, username, profile, comment, tx_rate_bps, rx_rate_bps, tx_bytes, rx_bytes')
+    .eq('is_active', true)
+
+  if (!sessions || sessions.length === 0) return
+
+  // Fetch resellers and mappings for matching
+  const { data: resellers } = await supabase.from('resellers').select('id, detection_rules')
+  const { data: mappings } = await supabase.from('reseller_user_mappings').select('reseller_id, pppoe_username')
+  const allResellers = resellers || []
+  const userMappings = mappings || []
+
+  // Per-router snapshots
+  const routerMap = new Map<string, typeof sessions>()
+  for (const s of sessions) {
+    const arr = routerMap.get(s.router_id) || []
+    arr.push(s)
+    routerMap.set(s.router_id, arr)
+  }
+
+  const historyRows: Array<Record<string, unknown>> = []
+
+  for (const [routerId, routerSessions] of routerMap) {
+    const totalTx = routerSessions.reduce((sum, s) => sum + (s.tx_bytes || 0), 0)
+    const totalRx = routerSessions.reduce((sum, s) => sum + (s.rx_bytes || 0), 0)
+    const avgBwBps = routerSessions.reduce((sum, s) => sum + (s.tx_rate_bps || 0) + (s.rx_rate_bps || 0), 0) / Math.max(routerSessions.length, 1)
+    historyRows.push({
+      router_id: routerId,
+      reseller_id: null,
+      session_count: routerSessions.length,
+      total_tx_bytes: totalTx,
+      total_rx_bytes: totalRx,
+      avg_bandwidth_mbps: Math.round(avgBwBps / 1_000_000 * 100) / 100,
+    })
+  }
+
+  // Per-reseller snapshots (match sessions using same logic)
+  for (const reseller of allResellers) {
+    const rules = Array.isArray(reseller.detection_rules) ? reseller.detection_rules : []
+    const matched = sessions.filter(s => {
+      if (userMappings.some(m => m.reseller_id === reseller.id && m.pppoe_username === s.username)) return true
+      if (s.reseller_id === reseller.id) return true
+      for (const rule of rules) {
+        const r = rule as { type: string; value: string }
+        if (r.type === 'prefix' && s.username.startsWith(r.value)) return true
+        if (r.type === 'profile' && s.profile?.toLowerCase() === r.value.toLowerCase()) return true
+        if (r.type === 'comment' && s.comment?.toLowerCase().includes(r.value.toLowerCase())) return true
+      }
+      return false
+    })
+    if (matched.length > 0) {
+      const totalTx = matched.reduce((sum, s) => sum + (s.tx_bytes || 0), 0)
+      const totalRx = matched.reduce((sum, s) => sum + (s.rx_bytes || 0), 0)
+      const totalBw = matched.reduce((sum, s) => sum + (s.tx_rate_bps || 0) + (s.rx_rate_bps || 0), 0)
+      historyRows.push({
+        router_id: null,
+        reseller_id: reseller.id,
+        session_count: matched.length,
+        total_tx_bytes: totalTx,
+        total_rx_bytes: totalRx,
+        avg_bandwidth_mbps: Math.round(totalBw / 1_000_000 * 100) / 100,
+      })
+    }
+  }
+
+  if (historyRows.length > 0) {
+    const { error } = await supabase.from('usage_history').insert(historyRows)
+    if (error) console.error('Failed to record usage history:', error.message)
+    else console.log(`Recorded ${historyRows.length} usage history snapshots`)
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -310,6 +385,9 @@ Deno.serve(async (req) => {
         isOnline: true
       })
     }
+
+    // --- Record usage history snapshots ---
+    await recordUsageHistory(supabase)
 
     // --- Bandwidth threshold alerting ---
     await checkBandwidthThresholds(supabase)
