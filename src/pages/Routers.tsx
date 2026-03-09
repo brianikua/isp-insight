@@ -12,9 +12,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2, RefreshCw, Lock, Unlock } from 'lucide-react';
+import { Plus, Router, Wifi, WifiOff, Pencil, Trash2, Loader2, RefreshCw, Lock, Unlock, FlaskConical } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
+import { RouterTestDialog } from '@/components/routers/RouterTestDialog';
 
 interface RouterForm {
   name: string;
@@ -46,6 +47,7 @@ export default function Routers() {
   const [form, setForm] = useState<RouterForm>(defaultForm);
   const [pollingRouterId, setPollingRouterId] = useState<string | null>(null);
   const [isPollingAll, setIsPollingAll] = useState(false);
+  const [testingRouter, setTestingRouter] = useState<{ id: string; name: string } | null>(null);
 
   const { data: routers, isLoading } = useQuery({
     queryKey: ['routers'],
@@ -402,6 +404,14 @@ export default function Routers() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => setTestingRouter({ id: router.id, name: router.name })}
+                              title="Test connection"
+                            >
+                              <FlaskConical className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => pollRouter(router.id)}
                               disabled={pollingRouterId === router.id || isPollingAll}
                               title="Poll this router"
@@ -440,6 +450,15 @@ export default function Routers() {
           </CardContent>
         </Card>
       </div>
+
+      {testingRouter && (
+        <RouterTestDialog
+          routerId={testingRouter.id}
+          routerName={testingRouter.name}
+          open={!!testingRouter}
+          onOpenChange={(open) => { if (!open) setTestingRouter(null); }}
+        />
+      )}
     </MainLayout>
   );
 }
