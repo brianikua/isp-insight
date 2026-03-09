@@ -47,6 +47,7 @@ export default function Routers() {
   const [form, setForm] = useState<RouterForm>(defaultForm);
   const [pollingRouterId, setPollingRouterId] = useState<string | null>(null);
   const [isPollingAll, setIsPollingAll] = useState(false);
+  const [testingRouter, setTestingRouter] = useState<{ id: string; name: string } | null>(null);
 
   const { data: routers, isLoading } = useQuery({
     queryKey: ['routers'],
