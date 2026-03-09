@@ -24,6 +24,7 @@ interface RouterForm {
   username: string;
   password: string;
   routeros_version: string;
+  use_https: boolean;
 }
 
 const defaultForm: RouterForm = {
@@ -34,6 +35,7 @@ const defaultForm: RouterForm = {
   username: 'admin',
   password: '',
   routeros_version: 'v7',
+  use_https: true,
 };
 
 export default function Routers() {
